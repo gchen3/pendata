@@ -1,0 +1,657 @@
+[
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "FRS: Prepare plan data in a consistent format",
+    "section": "",
+    "text": "1 Introduction\nThis quarto subproject is part of the repo pendata, which provides public pension plan data for penmodel in a format that is consisstent from plan to plan. This subproject prepares data for Florida FRS, creating the file frs.rda.\nThe steps are:",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>Introduction</span>"
+    ]
+  },
+  {
+    "objectID": "index.html#todo",
+    "href": "index.html#todo",
+    "title": "FRS: Prepare plan data in a consistent format",
+    "section": "1.1 TODO:",
+    "text": "1.1 TODO:\n\ndefine classes and longer class names in a separate sheet?\ndeal with calibration constants that currently include the target minus a calculated value (or vice versa)\nONGOING - update frs_extracted_data_v&lt;#&gt;.xlsm file\nDONE plan field name – add system column to pendata files\nDONE – amortization_bases has multiple NA columns - delete them in the next extracted_data xlsm file\nDONE – withdrawal_eco info has note with NA value",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>Introduction</span>"
+    ]
+  },
+  {
+    "objectID": "steps.html",
+    "href": "steps.html",
+    "title": "2  Steps",
+    "section": "",
+    "text": "2.1 Completely re-render a plan from scratch (e.g., frs):\nThis does a soup-to-nuts preparation of data for a single plan:",
+    "crumbs": [
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>Steps</span>"
+    ]
+  },
+  {
+    "objectID": "steps.html#completely-re-render-a-plan-from-scratch-e.g.-frs",
+    "href": "steps.html#completely-re-render-a-plan-from-scratch-e.g.-frs",
+    "title": "2  Steps",
+    "section": "",
+    "text": "make sure data-raw/plan_config.json has plan set to the plan of interest, and xd_filename set to the proper extracted data filename for the plan\nsee which files should be deleted for complete reset:\nreset_all(“frs”)\ndelete the files:\nreset_all(“frs”, delete=TRUE)\nopen terminal in the plan qmd folder\nin the terminal, do full re-render of the plan: quarto render\n\n\n\nget the data from the plan spreadsheet\n\nread all sheets in the extracted data Excel file\nput their metadata and data into a list\nwrite the list to the plan’s working data folder\nthis takes a few seconds but makes subsequent access to the sheets very fast\n\nprepare the plan data, generally in 3 steps:\n\nData preparation: Get the data in a sheet and reformat it to be consistent with what pendata requires\nTesting: Apply tests to the data to look for potential errors. The quarto project will stop immediately if any test fails.\nStaging: If the data passes tests, write the reformatted table to a staging area.\n\nsave package-ready data to an interim folder\nassembles all of the package-ready data files into a plan list\nsave the final plan list to the package data folder (e.g., frs.rda will be saved to the top-level data folder), so that it will be included in the package when built",
+    "crumbs": [
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>Steps</span>"
+    ]
+  },
+  {
+    "objectID": "steps.html#build-the-package-with-the-updated-plan-data",
+    "href": "steps.html#build-the-package-with-the-updated-plan-data",
+    "title": "2  Steps",
+    "section": "2.2 Build the package with the updated plan data",
+    "text": "2.2 Build the package with the updated plan data\n\nmake sure the internal functions have been sourced: source(here::here(“R”, “internal_functions.R”))\nbe sure that no excel files in the project are open as that will lead to errors\nfrom the console, run: buildit()\n\nThis function:\n\nunloads the pendata package if loaded\nuninstalls the package\nclears the global environment\nrebuilds and installs the pendata package\nloads the package\nprints the package version\n\nYou can now do something like: “plan &lt;- pendata::frs” or “plan &lt;- pendata::txtrs” and use the plan in penmodel.",
+    "crumbs": [
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>Steps</span>"
+    ]
+  },
+  {
+    "objectID": "get_and_save_extracted_data.html",
+    "href": "get_and_save_extracted_data.html",
+    "title": "3  Get and save extracted inputs",
+    "section": "",
+    "text": "3.1 Define sheets to get\nCode\nxdpath &lt;- fs::path(DIRS$xddir, PLAN_CONSTANTS$xd_filename)\nsheets &lt;- readxl::excel_sheets(xdpath)\nsheets_get &lt;- sheets[!stringr::str_starts(sheets, \"0_\")] |&gt; sort()",
+    "crumbs": [
+      "Extract Data",
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>Get and save extracted inputs</span>"
+    ]
+  },
+  {
+    "objectID": "get_and_save_extracted_data.html#create-and-save-list",
+    "href": "get_and_save_extracted_data.html#create-and-save-list",
+    "title": "3  Get and save extracted inputs",
+    "section": "3.2 Create and save list",
+    "text": "3.2 Create and save list\nPut info into a list, save as rds.\n\n\nCode\na &lt;- proc.time()\ninputs_list &lt;- sheets_get |&gt;\n  rlang::set_names() |&gt;\n  purrr::map(get_data, xdpath)\nb &lt;- proc.time()\nb - a # 3 secs\n\nnames(inputs_list)\ninputs_list$benefit_rules\n\nfname &lt;- paste0(PLAN_CONSTANTS$plan, \"_inputs_raw.rds\")\nsaveRDS(inputs_list, fs::path(DIRS$work, fname))\n\n\n\n\nCode\nfname &lt;- paste0(PLAN_CONSTANTS$plan, \"_inputs_raw.rds\")\ncheck &lt;- readRDS(fs::path(DIRS$work, fname))\n\nnames(check)",
+    "crumbs": [
+      "Extract Data",
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>Get and save extracted inputs</span>"
+    ]
+  },
+  {
+    "objectID": "test_extracted_data.html",
+    "href": "test_extracted_data.html",
+    "title": "4  Tests: Extracted data",
+    "section": "",
+    "text": "4.1 Test whether necessary sheets are included\nCode\n# here::here(\"data-raw/plans/tests/testthat/test_headcount_salary.R\"),\n\ntest_results &lt;- testthat::test_file(\n  # here::here(\"data-raw/plans/tests/testthat/test_extracted_sheets.R\"),\n  fs::path(GROOT, \"data-raw/plans/tests/testthat/test_extracted_sheets.R\"),\n  reporter = testthat::TapReporter$new()\n)\nCode\nfpath &lt;- fs::path(DIRS$work, \"tests_extracted_data.csv\")\n\nif (fs::file_exists(fpath)) {\n  fs::file_delete(fpath)\n}\n\ntibble(\n  test = \"all data extraction tests passed\",\n  passed = all_tests_passed(test_results)\n) |&gt;\n  readr::write_csv(fpath)",
+    "crumbs": [
+      "Extract Data",
+      "<span class='chapter-number'>4</span>  <span class='chapter-title'>Tests: Extracted data</span>"
+    ]
+  },
+  {
+    "objectID": "amortization_bases.html",
+    "href": "amortization_bases.html",
+    "title": "5  Amortization bases",
+    "section": "",
+    "text": "5.1 Clean the data\nCode\ncount(data, class) # note that drop is one of the classes\ncount(data, date)\ncount(data, amo_period)\n\ndata |&gt; filter(is.na(class))\ndata |&gt; filter(amo_period == \"n/a\")\n\namo1 &lt;- data |&gt;\n  filter(!is.na(class)) |&gt;\n  mutate(\n    date2 = lubridate::mdy(date),\n    amo_period2 = as.integer(amo_period),\n    amo_balance2 = as.numeric(amo_balance)\n  )\n\n# inspect values\nskimr::skim(amo1) # only amo_period2 has missing values - the n/a values from before\n\namo2 &lt;- amo1 |&gt;\n  select(\n    class,\n    date = date2,\n    amo_period = amo_period2,\n    amo_balance = amo_balance2\n  ) |&gt;\n  arrange(class, date)\nskimr::skim(amo2)",
+    "crumbs": [
+      "Amortization Bases",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>Amortization bases</span>"
+    ]
+  },
+  {
+    "objectID": "amortization_bases.html#clean-the-data",
+    "href": "amortization_bases.html#clean-the-data",
+    "title": "5  Amortization bases",
+    "section": "",
+    "text": "Convert dates to date class\n  Convert amortization values to numeric\n  Examine plausibility",
+    "crumbs": [
+      "Amortization Bases",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>Amortization bases</span>"
+    ]
+  },
+  {
+    "objectID": "amortization_bases.html#save-cleaned-amortization-bases-data-to-working-folder",
+    "href": "amortization_bases.html#save-cleaned-amortization-bases-data-to-working-folder",
+    "title": "5  Amortization bases",
+    "section": "5.2 Save cleaned amortization bases data to working folder",
+    "text": "5.2 Save cleaned amortization bases data to working folder\n\n\nCode\nsaveRDS(amo2, fs::path(DIRS$work, \"amortization_bases.rds\"))",
+    "crumbs": [
+      "Amortization Bases",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>Amortization bases</span>"
+    ]
+  },
+  {
+    "objectID": "test_amortization_bases.html",
+    "href": "test_amortization_bases.html",
+    "title": "6  Tests: Amortization bases",
+    "section": "",
+    "text": "Code\nGROOT &lt;- rprojroot::find_root(rprojroot::has_file(\".git/index\"))\nsource(fs::path(GROOT, \"data-raw\", \"R\", \"setup.R\"))\n\n\n\n\nCode\namortization_bases &lt;- readRDS(fs::path(DIRS$work, \"amortization_bases.rds\"))\n\n\n\n\nCode\n# # here::here(\"data-raw/plans/tests/testthat/test_headcount_salary.R\"),\n\ntest_results &lt;- test_that(\"sum of amortization bases\", {\n  amosum &lt;- sum(amortization_bases$amo_balance)\n  expect_gte(amosum, 0)\n}) # returns a boolean; test_file returns a list\n\n\n\n\nCode\nfpath &lt;- fs::path(DIRS$work, \"tests_amortization_bases.csv\")\n\nif (fs::file_exists(fpath)) {\n  fs::file_delete(fpath)\n}\n\ntibble(\n  test = \"all amortization_bases tests passed\",\n  passed = test_results # all_tests_passed(test_results)\n) |&gt;\n  readr::write_csv(fpath)",
+    "crumbs": [
+      "Amortization Bases",
+      "<span class='chapter-number'>6</span>  <span class='chapter-title'>Tests: Amortization bases</span>"
+    ]
+  },
+  {
+    "objectID": "stage_amortization_bases.html",
+    "href": "stage_amortization_bases.html",
+    "title": "7  Stage: Amortization bases",
+    "section": "",
+    "text": "Code\nGROOT &lt;- rprojroot::find_root(rprojroot::has_file(\".git/index\"))\nsource(fs::path(GROOT, \"data-raw\", \"R\", \"setup.R\"))\n\n\n\n\nCode\nfpath &lt;- fs::path(DIRS$work, \"tests_amortization_bases.csv\")\nstatus &lt;- readr::read_csv(fpath)\n\nif (status$passed) {\n  fname &lt;- \"amortization_bases.rds\"\n  file_copy(\n    fs::path(DIRS$work, fname),\n    fs::path(DIRS$stage, fname),\n    overwrite = TRUE\n  )\n} else {\n  stop(\"amortization_bases failure\")\n}",
+    "crumbs": [
+      "Amortization Bases",
+      "<span class='chapter-number'>7</span>  <span class='chapter-title'>Stage: Amortization bases</span>"
+    ]
+  },
+  {
+    "objectID": "benefit_rules.html",
+    "href": "benefit_rules.html",
+    "title": "8  Benefit rules",
+    "section": "",
+    "text": "8.1 Clean the data\nCode\ncount(data, class) # no drop or frs total\ncount(data, tier)\ncount(data, early_retirement)\n\nbenefit_rules &lt;- data |&gt;\n  mutate(across(c(starts_with(\"dist_\"), starts_with(\"yos_\")), as.integer)) |&gt;\n  mutate(benmult = as.numeric(benmult))\n\n# inspect values\nskimr::skim(benefit_rules) # why no zero for benmult??",
+    "crumbs": [
+      "Benefit Rules",
+      "<span class='chapter-number'>8</span>  <span class='chapter-title'>Benefit rules</span>"
+    ]
+  },
+  {
+    "objectID": "benefit_rules.html#clean-the-data",
+    "href": "benefit_rules.html#clean-the-data",
+    "title": "8  Benefit rules",
+    "section": "",
+    "text": "Convert dates to date class\n  Convert amortization values to numeric\n  Examine plausibility",
+    "crumbs": [
+      "Benefit Rules",
+      "<span class='chapter-number'>8</span>  <span class='chapter-title'>Benefit rules</span>"
+    ]
+  },
+  {
+    "objectID": "benefit_rules.html#save-file-to-work-folder",
+    "href": "benefit_rules.html#save-file-to-work-folder",
+    "title": "8  Benefit rules",
+    "section": "8.2 Save file to work folder",
+    "text": "8.2 Save file to work folder\n\n\nCode\nsaveRDS(benefit_rules, fs::path(DIRS$work, \"benefit_rules.rds\"))",
+    "crumbs": [
+      "Benefit Rules",
+      "<span class='chapter-number'>8</span>  <span class='chapter-title'>Benefit rules</span>"
+    ]
+  },
+  {
+    "objectID": "benefit_rules_test_cases.html",
+    "href": "benefit_rules_test_cases.html",
+    "title": "9  Benefit rules test cases",
+    "section": "",
+    "text": "9.1 Clean the data\nCode\ncount(data, class) # no drop or frs total\ncount(data, tier)\ncount(data, early_retirement)\n\nbenefit_rules_test_cases &lt;- data |&gt;\n  mutate(across(c(id, dist_age, yos, dist_year), as.integer)) |&gt;\n  mutate(expected_benmult = as.numeric(expected_benmult))\n\n# inspect values\nskimr::skim(benefit_rules_test_cases) # why no zero for benmult??",
+    "crumbs": [
+      "Benefit Rules",
+      "<span class='chapter-number'>9</span>  <span class='chapter-title'>Benefit rules test cases</span>"
+    ]
+  },
+  {
+    "objectID": "benefit_rules_test_cases.html#clean-the-data",
+    "href": "benefit_rules_test_cases.html#clean-the-data",
+    "title": "9  Benefit rules test cases",
+    "section": "",
+    "text": "Convert dates to date class\n  Convert amortization values to numeric\n  Examine plausibility",
+    "crumbs": [
+      "Benefit Rules",
+      "<span class='chapter-number'>9</span>  <span class='chapter-title'>Benefit rules test cases</span>"
+    ]
+  },
+  {
+    "objectID": "benefit_rules_test_cases.html#save-file-to-work-area",
+    "href": "benefit_rules_test_cases.html#save-file-to-work-area",
+    "title": "9  Benefit rules test cases",
+    "section": "9.2 Save file to work area",
+    "text": "9.2 Save file to work area\n\n\nCode\nsaveRDS(\n  benefit_rules_test_cases,\n  fs::path(DIRS$work, \"benefit_rules_test_cases.rds\")\n)",
+    "crumbs": [
+      "Benefit Rules",
+      "<span class='chapter-number'>9</span>  <span class='chapter-title'>Benefit rules test cases</span>"
+    ]
+  },
+  {
+    "objectID": "test_benefit_rules.html",
+    "href": "test_benefit_rules.html",
+    "title": "10  Tests: Benefit-multiplier rules and function",
+    "section": "",
+    "text": "Code\nGROOT &lt;- rprojroot::find_root(rprojroot::has_file(\".git/index\"))\nsource(fs::path(GROOT, \"data-raw\", \"R\", \"setup.R\"))\n\n\n\n\nCode\n# # here::here(\"data-raw/plans/tests/testthat/test_headcount_salary.R\"),\n\ntest_results &lt;- testthat::test_file(\n  fs::path(\n    GROOT,\n    \"data-raw\",\n    \"plans\",\n    \"tests/testthat/test_benefit_multiplier_lookup_and_function.R\"\n  ),\n  reporter = TapReporter$new()\n)\n\n\n\n\nCode\nfpath &lt;- fs::path(DIRS$work, \"tests_benefit_rules.csv\")\n\nif (fs::file_exists(fpath)) {\n  fs::file_delete(fpath)\n}\n\ntibble(\n  test = \"all benefit rules tests passed\",\n  passed = all_tests_passed(test_results)\n) |&gt;\n  readr::write_csv(fpath)",
+    "crumbs": [
+      "Benefit Rules",
+      "<span class='chapter-number'>10</span>  <span class='chapter-title'>Tests: Benefit-multiplier rules and function</span>"
+    ]
+  },
+  {
+    "objectID": "stage_benefit_rules_and_test_cases.html",
+    "href": "stage_benefit_rules_and_test_cases.html",
+    "title": "11  Stage: Amortization bases",
+    "section": "",
+    "text": "Code\nGROOT &lt;- rprojroot::find_root(rprojroot::has_file(\".git/index\"))\nsource(fs::path(GROOT, \"data-raw\", \"R\", \"setup.R\"))\n\n\n\n\nCode\nfpath &lt;- fs::path(DIRS$work, \"tests_benefit_rules.csv\")\nstatus &lt;- readr::read_csv(fpath)\n\nif (!all(status$passed)) {\n  stop(\"retiree tests failure\")\n}\n\nbenefit_rules &lt;- readRDS(fs::path(DIRS$work, \"benefit_rules.rds\"))\nbenefit_rules_test_cases &lt;- readRDS(fs::path(\n  DIRS$work,\n  \"benefit_rules_test_cases.rds\"\n))\n\nsaveRDS(benefit_rules, fs::path(DIRS$staged, \"benefit_rules.rds\"))\nsaveRDS(\n  benefit_rules_test_cases,\n  fs::path(DIRS$staged, \"benefit_rules_test_cases.rds\")\n)",
+    "crumbs": [
+      "Benefit Rules",
+      "<span class='chapter-number'>11</span>  <span class='chapter-title'>Stage: Amortization bases</span>"
+    ]
+  },
+  {
+    "objectID": "constants_assumptions.html",
+    "href": "constants_assumptions.html",
+    "title": "12  Constants",
+    "section": "",
+    "text": "12.1 Clean up the data",
+    "crumbs": [
+      "Constants",
+      "<span class='chapter-number'>12</span>  <span class='chapter-title'>Constants</span>"
+    ]
+  },
+  {
+    "objectID": "constants_assumptions.html#clean-up-the-data",
+    "href": "constants_assumptions.html#clean-up-the-data",
+    "title": "12  Constants",
+    "section": "",
+    "text": "12.1.1 Determine variable types\n\n\nCode\ncount(data, datatype)\ndata |&gt; filter(is.na(datatype)) # make sure all of these recs are all NAs\n\ndata2 &lt;- data |&gt;\n  filter(!is.na(type)) |&gt;\n  mutate(\n    vnumeric = ifelse(datatype == \"numeric\", as.numeric(value), NA_real_),\n    vstring = ifelse(datatype == \"string\", value, NA_character_),\n    vlogical = ifelse(datatype == \"logical\", as.logical(value), NA)\n  )\n\ndata2 |&gt; filter(!is.na(vlogical))\ndata2 |&gt; filter(!is.na(vstring))\ndata2 |&gt; filter(!is.na(vnumeric))\n\n\n\n\n12.1.2 Recover original Reason variable names\n\n\nCode\ncount(data2, class)\n\nprefixes &lt;- c(\n  \"admin\",\n  \"eco\",\n  \"eco_eso_judges\",\n  \"eso\",\n  \"judges\",\n  \"non_special\",\n  \"regular\",\n  \"senior_management\",\n  \"special\"\n)\n\ndata3 &lt;- data2 |&gt;\n  mutate(\n    original = case_when(\n      class %in% prefixes ~ paste0(class, \"_\", variable),\n      class == \"all\" ~ variable,\n      .default = NA_character_\n    )\n  ) |&gt;\n  relocate(original, .after = variable)\n\nskimr::skim(data3)\ndata3",
+    "crumbs": [
+      "Constants",
+      "<span class='chapter-number'>12</span>  <span class='chapter-title'>Constants</span>"
+    ]
+  },
+  {
+    "objectID": "constants_assumptions.html#create-any-new-items-needed",
+    "href": "constants_assumptions.html#create-any-new-items-needed",
+    "title": "12  Constants",
+    "section": "12.2 Create any new items needed",
+    "text": "12.2 Create any new items needed\n\n\nCode\n# ben_payment_ratio_ &lt;- pension_payment_/(pension_payment_ + contribution_refunds_ + disbursement_to_ip_ + admin_expense_)\nbpr &lt;- data3 |&gt;\n  filter(\n    variable %in%\n      c(\n        \"pension_payment_\",\n        \"contribution_refunds_\",\n        \"disbursement_to_ip_\",\n        \"admin_expense_\"\n      )\n  ) |&gt;\n  select(variable, vnumeric) |&gt;\n  pivot_wider(names_from = variable, values_from = vnumeric) |&gt;\n  mutate(\n    ben_payment_ratio_ = pension_payment_ /\n      (pension_payment_ +\n        contribution_refunds_ +\n        disbursement_to_ip_ +\n        admin_expense_)\n  ) |&gt;\n  pull(ben_payment_ratio_)\n\n\ndata4 &lt;- data3 |&gt;\n  mutate(\n    vnumeric = if_else(\n      variable == \"ben_payment_ratio_\",\n      bpr,\n      vnumeric\n    ),\n    datatype = if_else(\n      variable == \"ben_payment_ratio_\",\n      \"numeric\",\n      datatype\n    )\n  )",
+    "crumbs": [
+      "Constants",
+      "<span class='chapter-number'>12</span>  <span class='chapter-title'>Constants</span>"
+    ]
+  },
+  {
+    "objectID": "constants_assumptions.html#show-the-slightly-cleaned-data",
+    "href": "constants_assumptions.html#show-the-slightly-cleaned-data",
+    "title": "12  Constants",
+    "section": "12.3 Show the slightly cleaned data",
+    "text": "12.3 Show the slightly cleaned data\n\n\nCode\nDT::datatable(\n  data4,\n  width = \"100%\",\n  options = list(scrollX = TRUE, scrollY = '1500px', pageLength = 20),\n  filter = \"top\"\n)\n\n\n\n\n\n\nCode\n# # datatable(ptargets, options = list(scrollX = TRUE, scrollY = '400px', paging = TRUE))\n\n# datatable(\n#   ptargets |&gt;\n#     select(-table_description),\n#   options = list(scrollX = TRUE, scrollY = '1500px', pageLength = 20),\n#   filter = \"top\"\n# ) |&gt;\n#   formatCurrency(columns = c(\"ptarget\"), currency = \"\", digits = 0)",
+    "crumbs": [
+      "Constants",
+      "<span class='chapter-number'>12</span>  <span class='chapter-title'>Constants</span>"
+    ]
+  },
+  {
+    "objectID": "constants_assumptions.html#convert-from-data-frame-to-a-list",
+    "href": "constants_assumptions.html#convert-from-data-frame-to-a-list",
+    "title": "12  Constants",
+    "section": "12.4 Convert from data frame to a list",
+    "text": "12.4 Convert from data frame to a list\n\n\nCode\n# in case we want it, make a list categorized by data type\n\ntypes &lt;- c(\"numeric\", \"string\", \"logical\")\n\nlist_split &lt;- data4 |&gt;\n  filter(!is.na(original), datatype %in% types) |&gt;\n  rowwise() |&gt;\n  mutate(\n    value = list(\n      if (datatype == \"numeric\") {\n        vnumeric\n      } else if (datatype == \"string\") {\n        vstring\n      } else {\n        vlogical\n      }\n    )\n  ) |&gt;\n  ungroup() |&gt;\n  select(datatype, vname = original, value) |&gt;\n  group_split(datatype) |&gt;\n  (\\(lst) set_names(lst, map_chr(lst, ~ unique(.x$datatype))))() |&gt;\n  map(~ deframe(.x[, c(\"vname\", \"value\")]))\n\n# flatten the list\nlist_flat &lt;- purrr::flatten(list_split)",
+    "crumbs": [
+      "Constants",
+      "<span class='chapter-number'>12</span>  <span class='chapter-title'>Constants</span>"
+    ]
+  },
+  {
+    "objectID": "constants_assumptions.html#save-cleaned-constants-data-to-working-folder",
+    "href": "constants_assumptions.html#save-cleaned-constants-data-to-working-folder",
+    "title": "12  Constants",
+    "section": "12.5 Save cleaned constants data to working folder",
+    "text": "12.5 Save cleaned constants data to working folder\n\n\nCode\nsaveRDS(data4, fs::path(DIRS$work, \"constants_assumptions_tbl.rds\"))\n\nsaveRDS(list_flat, fs::path(DIRS$work, \"constants_assumptions.rds\"))",
+    "crumbs": [
+      "Constants",
+      "<span class='chapter-number'>12</span>  <span class='chapter-title'>Constants</span>"
+    ]
+  },
+  {
+    "objectID": "test_constants_assumptions.html",
+    "href": "test_constants_assumptions.html",
+    "title": "13  Tests: Constants",
+    "section": "",
+    "text": "Code\nGROOT &lt;- rprojroot::find_root(rprojroot::has_file(\".git/index\"))\nsource(fs::path(GROOT, \"data-raw\", \"R\", \"setup.R\"))\n\n\n\n\nCode\nconstants &lt;- readRDS(fs::path(DIRS$work, \"constants_assumptions.rds\"))\n\n\n\n\nCode\nprint(\"no tests yet for constants_assumptions\")\ntest_results &lt;- TRUE\n\n# # here::here(\"data-raw/plans/tests/testthat/test_headcount_salary.R\"),\n\n# test_results &lt;- test_that(\"sum of amortization bases\", {\n#   amosum &lt;- sum(amortization_bases$amo_balance)\n#   expect_gte(amosum, 0)\n# }) # returns a boolean; test_file returns a list\n\n\n\n\nCode\nfpath &lt;- fs::path(DIRS$work, \"tests_constants_assumptions.csv\")\n\nif (fs::file_exists(fpath)) {\n  fs::file_delete(fpath)\n}\n\ntibble(\n  test = \"all constants_assumptions tests passed\",\n  passed = test_results # all_tests_passed(test_results)\n) |&gt;\n  readr::write_csv(fpath)",
+    "crumbs": [
+      "Constants",
+      "<span class='chapter-number'>13</span>  <span class='chapter-title'>Tests: Constants</span>"
+    ]
+  },
+  {
+    "objectID": "stage_constants_assumptions.html",
+    "href": "stage_constants_assumptions.html",
+    "title": "14  Stage: Constants",
+    "section": "",
+    "text": "Code\nGROOT &lt;- rprojroot::find_root(rprojroot::has_file(\".git/index\"))\nsource(fs::path(GROOT, \"data-raw\", \"R\", \"setup.R\"))\n\n\n\n\nCode\nfpath &lt;- fs::path(DIRS$work, \"tests_constants_assumptions.csv\")\nstatus &lt;- readr::read_csv(fpath)\n\nif (status$passed) {\n  fname &lt;- \"constants_assumptions.rds\"\n  file_copy(\n    fs::path(DIRS$work, fname),\n    fs::path(DIRS$stage, fname),\n    overwrite = TRUE\n  )\n  fname &lt;- \"constants_assumptions_tbl.rds\"\n  file_copy(\n    fs::path(DIRS$work, fname),\n    fs::path(DIRS$stage, fname),\n    overwrite = TRUE\n  )  \n} else {\n  stop(\"constants_assumptions failure\")\n}",
+    "crumbs": [
+      "Constants",
+      "<span class='chapter-number'>14</span>  <span class='chapter-title'>Stage: Constants</span>"
+    ]
+  },
+  {
+    "objectID": "retirees.html",
+    "href": "retirees.html",
+    "title": "15  Prepare: Retirees",
+    "section": "",
+    "text": "15.1 Get retirees data\nCode\nsheet &lt;- \"retirees_disability\"\ndisb_info &lt;- rawdata[[sheet]]$info\ndisb_data &lt;- rawdata[[sheet]]$data\n\nsheet &lt;- \"retirees_normearly\"\nne_info &lt;- rawdata[[sheet]]$info\nne_data &lt;- rawdata[[sheet]]$data\n\nretirees1 &lt;- bind_rows(disb_data, ne_data) |&gt;\n  rename(age_label = age)\nretirees1",
+    "crumbs": [
+      "Retirees",
+      "<span class='chapter-number'>15</span>  <span class='chapter-title'>Prepare: Retirees</span>"
+    ]
+  },
+  {
+    "objectID": "retirees.html#clean-retirees-data",
+    "href": "retirees.html#clean-retirees-data",
+    "title": "15  Prepare: Retirees",
+    "section": "15.2 Clean retirees data",
+    "text": "15.2 Clean retirees data\n\n  add age bounds\n  convert to numeric\n  keep totals until after testing\n\n\n\nCode\n# define bounds\n(agelabel &lt;- retirees1$age_label |&gt; unique())\nagelb &lt;- c(CONSTANTS$minage, seq(50, 80, 5), CONSTANTS$minage)\nageub &lt;- c(seq(49, 79, 5), CONSTANTS$maxage, CONSTANTS$maxage)\ncbind(agelabel, agelb, ageub)\n\nages &lt;- tibble(age_label = agelabel, age_lb = agelb, age_ub = ageub)\n\nretirees2 &lt;- retirees1 |&gt;\n  left_join(ages, by = join_by(age_label)) |&gt;\n  mutate(count = as.integer(count), benefits = as.numeric(benefits))",
+    "crumbs": [
+      "Retirees",
+      "<span class='chapter-number'>15</span>  <span class='chapter-title'>Prepare: Retirees</span>"
+    ]
+  },
+  {
+    "objectID": "retirees.html#show-and-then-save-to-working-folder-retirees-data",
+    "href": "retirees.html#show-and-then-save-to-working-folder-retirees-data",
+    "title": "15  Prepare: Retirees",
+    "section": "15.3 Show and then save to working folder retirees data",
+    "text": "15.3 Show and then save to working folder retirees data\n\n\nCode\nskimr::skim(retirees2)\n\n\n\nData summary\n\n\nName\nretirees2\n\n\nNumber of rows\n18\n\n\nNumber of columns\n6\n\n\n_______________________\n\n\n\nColumn type frequency:\n\n\n\ncharacter\n2\n\n\nnumeric\n4\n\n\n________________________\n\n\n\nGroup variables\nNone\n\n\n\nVariable type: character\n\n\n\n\n\n\n\n\n\n\n\n\n\nskim_variable\nn_missing\ncomplete_rate\nmin\nmax\nempty\nn_unique\nwhitespace\n\n\n\n\ntype\n0\n1\n9\n10\n0\n2\n0\n\n\nage_label\n0\n1\n5\n9\n0\n9\n0\n\n\n\nVariable type: numeric\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nskim_variable\nn_missing\ncomplete_rate\nmean\nsd\np0\np25\np50\np75\np100\nhist\n\n\n\n\ncount\n0\n1\n49294.89\n102212.30\n424\n1738.25\n3321.5\n72401.75\n430684\n▇▂▁▁▁\n\n\nbenefits\n0\n1\n1240582.67\n2589616.63\n8740\n29866.00\n92376.5\n1865458.75\n10924573\n▇▁▁▁▁\n\n\nage_lb\n0\n1\n54.56\n22.06\n18\n50.00\n60.0\n70.00\n80\n▅▁▅▅▇\n\n\nage_ub\n0\n1\n76.44\n25.62\n49\n59.00\n69.0\n79.00\n120\n▇▇▂▁▅\n\n\n\n\n\nCode\nretirees2\n\n\n# A tibble: 18 × 6\n   type       age_label  count benefits age_lb age_ub\n   &lt;chr&gt;      &lt;chr&gt;      &lt;int&gt;    &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;\n 1 disability Under 50     424     8740     18     49\n 2 disability 50  to 54    805    15834     50     54\n 3 disability 55  to 59   1663    33505     55     59\n 4 disability 60  to 64   2471    43097     60     64\n 5 disability 65  to 69   2740    50825     65     69\n 6 disability 70  to 74   2287    42139     70     74\n 7 disability 75  to 79   1547    28653     75     79\n 8 disability 80  &  Up   1033    17878     80    120\n 9 disability Total      12970   240671     18    120\n10 normearly  Under 50    1964    28474     18     49\n11 normearly  50  to 54   3903   133928     50     54\n12 normearly  55  to 59  15381   520884     55     59\n13 normearly  60  to 64  46187  1231948     60     64\n14 normearly  65  to 69  90882  2178788     65     69\n15 normearly  70  to 74 104155  2628535     70     74\n16 normearly  75  to 79  81140  2076629     75     79\n17 normearly  80  &  Up  87072  2125387     80    120\n18 normearly  Total     430684 10924573     18    120\n\n\nCode\nsaveRDS(retirees2, fs::path(DIRS$work, \"retirees_with_totals.rds\"))",
+    "crumbs": [
+      "Retirees",
+      "<span class='chapter-number'>15</span>  <span class='chapter-title'>Prepare: Retirees</span>"
+    ]
+  },
+  {
+    "objectID": "test_retirees.html",
+    "href": "test_retirees.html",
+    "title": "16  Tests: Retirees",
+    "section": "",
+    "text": "Code\nGROOT &lt;- rprojroot::find_root(rprojroot::has_file(\".git/index\"))\nsource(fs::path(GROOT, \"data-raw\", \"R\", \"setup.R\"))\n\n\n\n\nCode\nretirees &lt;- readRDS(fs::path(DIRS$work, \"retirees_with_totals.rds\"))\n\n\n\n\nCode\n# here::here(\"data-raw/plans/tests/testthat/test_headcount_salary.R\"),\n\ntest_results &lt;- test_that(\"sums equal reported totals\", {\n  checksums &lt;- retirees |&gt;\n    mutate(rectype = ifelse(age_label == \"Total\", \"total\", \"detail\")) |&gt;\n    pivot_longer(cols = c(count, benefits)) |&gt;\n    summarise(value = sum(value), .by = c(type, rectype, name)) |&gt;\n    pivot_wider(names_from = rectype)\n\n  expect_equal(checksums$detail, checksums$total)\n}) # returns a boolean; test_file returns a list\n\n\n\n\nCode\nfpath &lt;- fs::path(DIRS$work, \"tests_retirees.csv\")\n\nif (fs::file_exists(fpath)) {\n  fs::file_delete(fpath)\n}\n\ntibble(\n  test = \"all retirees tests passed\",\n  passed = test_results # all_tests_passed(test_results)\n) |&gt;\n  readr::write_csv(fpath)",
+    "crumbs": [
+      "Retirees",
+      "<span class='chapter-number'>16</span>  <span class='chapter-title'>Tests: Retirees</span>"
+    ]
+  },
+  {
+    "objectID": "stage_retirees.html",
+    "href": "stage_retirees.html",
+    "title": "17  Stage: Retirees",
+    "section": "",
+    "text": "Code\nGROOT &lt;- rprojroot::find_root(rprojroot::has_file(\".git/index\"))\nsource(fs::path(GROOT, \"data-raw\", \"R\", \"setup.R\"))\n\n\n\n\nCode\nfpath &lt;- fs::path(DIRS$work, \"tests_retirees.csv\")\nstatus &lt;- readr::read_csv(fpath)\n\nif (!all(status$passed)) {\n  stop(\"retiree tests failure\")\n}\n\nretirees1 &lt;- readRDS(fs::path(DIRS$work, \"retirees_with_totals.rds\"))\n\nretirees &lt;- retirees1 |&gt;\n  filter(age_label != \"Total\") |&gt;\n  select(type, age_label, age_lb, age_ub, count, benefits)\n\nsaveRDS(retirees, fs::path(DIRS$staged, \"retirees.rds\"))\n\n# retirees &lt;- retirees1 |&gt;\n#   filter(age_label != \"Total\") |&gt;   select(type, age_label, age_lb, age_ub, count, benefits)\n\n# fname &lt;- \"retirees.rds\"\n#   file_copy(\n#     fs::path(DIRS$work, fname),\n#     fs::path(DIRS$stage, fname),\n#     overwrite = TRUE\n#   )\n# } else {\n#   stop(\"retiree tests failure\")\n# }",
+    "crumbs": [
+      "Retirees",
+      "<span class='chapter-number'>17</span>  <span class='chapter-title'>Stage: Retirees</span>"
+    ]
+  },
+  {
+    "objectID": "retirement_rates.html",
+    "href": "retirement_rates.html",
+    "title": "18  Prepare: Retirement Rates",
+    "section": "",
+    "text": "18.1 Get retirement rate data\nCode\n# which sheets?\nsheets &lt;- str_subset(names(rawdata), \"retire_rates\")\ndata_list &lt;- sheets |&gt;\n  map(~ pluck(rawdata, .x, \"data\")) |&gt;\n  set_names(sheets)\n\n# we'll create variable names that are class_subclass_gender:\n\nget_long &lt;- function(sheet) {\n  # construct column names as class_subclass_gender\n  # class_subclass prefixes\n  dropnorm &lt;- c(\"regular_k12\", \"regular_notk12\", \"special_all\", \"leo_all\", \"other_all\")\n  early &lt;- c(\"regular_notk12\", \"special_all\", \"elected_all\", \"seniormanagement_all\")\n  \n  retire_type &lt;- case_when(\n    str_detect(sheet, \"drop\") ~ \"drop\",\n    str_detect(sheet, \"early\") ~ \"early\",\n    str_detect(sheet, \"normal\") ~ \"normal\",\n    .default = \"ERROR\")\n\n  tier &lt;- case_when(\n    str_ends(sheet, \"tier1\") ~ \"tier1\",\n    str_ends(sheet, \"tier2\") ~ \"tier2\",\n    .default = \"ERROR\" )                          \n\n  if(str_detect(sheet, \"drop|normal\")) {prefixes &lt;- dropnorm } else prefixes &lt;- early\n  genders &lt;- c(\"female\", \"male\") \n  # combine prefixes and genders in the order they appear in Excel columns\n  f &lt;- function(prefix, genders) outer(prefixes, genders, paste, sep = \"_\") |&gt; t() |&gt; as.vector()  \n  colnames &lt;- c(\"age\", f(prefixes, genders))\n\n  # data_list is in the global environment\n  data_list[[sheet]] |&gt; \n    set_names(colnames) |&gt; \n    pivot_longer(cols = -age) |&gt; \n    mutate(sheet={{sheet}},\n    retire_type = retire_type,\n    tier = tier)\n}\n\n# get_long(sheet)  |&gt; str_subset(\"drop|normal\")\n\ndf1 &lt;- purrr::map(sheets, get_long) |&gt; \n  list_rbind()\n\nglimpse(df1)\ncount(df1, age) # 70-79 convert to 75\ncount(df1, name) # separate into class, subclass, gender (sex?) -- regular, special, leo, other; separate seniormanagement\ncount(df1, retire_type)\ncount(df1, tier)\ncount(df1, value)",
+    "crumbs": [
+      "Retirement Rates",
+      "<span class='chapter-number'>18</span>  <span class='chapter-title'>Prepare: Retirement Rates</span>"
+    ]
+  },
+  {
+    "objectID": "retirement_rates.html#clean-retirement-rate-data",
+    "href": "retirement_rates.html#clean-retirement-rate-data",
+    "title": "18  Prepare: Retirement Rates",
+    "section": "18.2 Clean retirement rate data",
+    "text": "18.2 Clean retirement rate data\n\n  convert age to integer\n  convert value to numeric\n\n\n\nCode\nretrate2 &lt;- df1 |&gt;\n  mutate(age = ifelse(age==\"70-79\", \"75\", age),\n  age = as.integer(age)) |&gt; \n    separate_wider_delim(name, delim=\"_\", names = c(\"class\", \"subclass\", \"gender\")) |&gt; \n    mutate(class = ifelse(class==\"seniormanagement\", \"senior_management\", class),\n    value=as.numeric(value)) |&gt; \n  select(class, subclass, gender, age, tier, retire_type, value, sheet)\n\ncount(retrate2, age)\ncount(retrate2, class, subclass, gender)\ncount(retrate2, tier)\ncount(retrate2, sheet)",
+    "crumbs": [
+      "Retirement Rates",
+      "<span class='chapter-number'>18</span>  <span class='chapter-title'>Prepare: Retirement Rates</span>"
+    ]
+  },
+  {
+    "objectID": "retirement_rates.html#save-to-working-folder",
+    "href": "retirement_rates.html#save-to-working-folder",
+    "title": "18  Prepare: Retirement Rates",
+    "section": "18.3 Save to working folder",
+    "text": "18.3 Save to working folder\n\n\nCode\nskimr::skim(retrate2)\n\n\n\nData summary\n\n\nName\nretrate2\n\n\nNumber of rows\n1326\n\n\nNumber of columns\n8\n\n\n_______________________\n\n\n\nColumn type frequency:\n\n\n\ncharacter\n6\n\n\nnumeric\n2\n\n\n________________________\n\n\n\nGroup variables\nNone\n\n\n\nVariable type: character\n\n\n\n\n\n\n\n\n\n\n\n\n\nskim_variable\nn_missing\ncomplete_rate\nmin\nmax\nempty\nn_unique\nwhitespace\n\n\n\n\nclass\n0\n1\n3\n17\n0\n6\n0\n\n\nsubclass\n0\n1\n3\n6\n0\n3\n0\n\n\ngender\n0\n1\n4\n6\n0\n2\n0\n\n\ntier\n0\n1\n5\n5\n0\n2\n0\n\n\nretire_type\n0\n1\n4\n6\n0\n3\n0\n\n\nsheet\n0\n1\n23\n25\n0\n6\n0\n\n\n\nVariable type: numeric\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nskim_variable\nn_missing\ncomplete_rate\nmean\nsd\np0\np25\np50\np75\np100\nhist\n\n\n\n\nage\n0\n1\n59.94\n8.43\n45\n54.00\n60.00\n66.00\n80\n▆▇▇▃▂\n\n\nvalue\n0\n1\n0.12\n0.19\n0\n0.03\n0.05\n0.12\n1\n▇▁▁▁▁\n\n\n\n\n\nCode\nretrate2\n\n\n# A tibble: 1,326 × 8\n   class   subclass gender   age tier  retire_type value sheet                  \n   &lt;chr&gt;   &lt;chr&gt;    &lt;chr&gt;  &lt;int&gt; &lt;chr&gt; &lt;chr&gt;       &lt;dbl&gt; &lt;chr&gt;                  \n 1 regular k12      female    45 tier1 drop         0    retire_rates_drop_tier1\n 2 regular k12      male      45 tier1 drop         0    retire_rates_drop_tier1\n 3 regular notk12   female    45 tier1 drop         0    retire_rates_drop_tier1\n 4 regular notk12   male      45 tier1 drop         0    retire_rates_drop_tier1\n 5 special all      female    45 tier1 drop         0.08 retire_rates_drop_tier1\n 6 special all      male      45 tier1 drop         0.13 retire_rates_drop_tier1\n 7 leo     all      female    45 tier1 drop         0.11 retire_rates_drop_tier1\n 8 leo     all      male      45 tier1 drop         0.18 retire_rates_drop_tier1\n 9 other   all      female    45 tier1 drop         0.05 retire_rates_drop_tier1\n10 other   all      male      45 tier1 drop         0.05 retire_rates_drop_tier1\n11 regular k12      female    46 tier1 drop         0    retire_rates_drop_tier1\n12 regular k12      male      46 tier1 drop         0    retire_rates_drop_tier1\n13 regular notk12   female    46 tier1 drop         0    retire_rates_drop_tier1\n14 regular notk12   male      46 tier1 drop         0    retire_rates_drop_tier1\n15 special all      female    46 tier1 drop         0.08 retire_rates_drop_tier1\n16 special all      male      46 tier1 drop         0.13 retire_rates_drop_tier1\n17 leo     all      female    46 tier1 drop         0.11 retire_rates_drop_tier1\n18 leo     all      male      46 tier1 drop         0.18 retire_rates_drop_tier1\n19 other   all      female    46 tier1 drop         0.05 retire_rates_drop_tier1\n20 other   all      male      46 tier1 drop         0.05 retire_rates_drop_tier1\n21 regular k12      female    47 tier1 drop         0    retire_rates_drop_tier1\n22 regular k12      male      47 tier1 drop         0    retire_rates_drop_tier1\n23 regular notk12   female    47 tier1 drop         0    retire_rates_drop_tier1\n24 regular notk12   male      47 tier1 drop         0    retire_rates_drop_tier1\n25 special all      female    47 tier1 drop         0.08 retire_rates_drop_tier1\n26 special all      male      47 tier1 drop         0.13 retire_rates_drop_tier1\n27 leo     all      female    47 tier1 drop         0.11 retire_rates_drop_tier1\n28 leo     all      male      47 tier1 drop         0.18 retire_rates_drop_tier1\n29 other   all      female    47 tier1 drop         0.05 retire_rates_drop_tier1\n30 other   all      male      47 tier1 drop         0.05 retire_rates_drop_tier1\n31 regular k12      female    48 tier1 drop         0.04 retire_rates_drop_tier1\n32 regular k12      male      48 tier1 drop         0.04 retire_rates_drop_tier1\n33 regular notk12   female    48 tier1 drop         0.05 retire_rates_drop_tier1\n34 regular notk12   male      48 tier1 drop         0.05 retire_rates_drop_tier1\n35 special all      female    48 tier1 drop         0.11 retire_rates_drop_tier1\n36 special all      male      48 tier1 drop         0.15 retire_rates_drop_tier1\n37 leo     all      female    48 tier1 drop         0.14 retire_rates_drop_tier1\n38 leo     all      male      48 tier1 drop         0.2  retire_rates_drop_tier1\n39 other   all      female    48 tier1 drop         0.16 retire_rates_drop_tier1\n40 other   all      male      48 tier1 drop         0.16 retire_rates_drop_tier1\n41 regular k12      female    49 tier1 drop         0.04 retire_rates_drop_tier1\n42 regular k12      male      49 tier1 drop         0.04 retire_rates_drop_tier1\n43 regular notk12   female    49 tier1 drop         0.1  retire_rates_drop_tier1\n44 regular notk12   male      49 tier1 drop         0.09 retire_rates_drop_tier1\n45 special all      female    49 tier1 drop         0.11 retire_rates_drop_tier1\n46 special all      male      49 tier1 drop         0.15 retire_rates_drop_tier1\n47 leo     all      female    49 tier1 drop         0.14 retire_rates_drop_tier1\n48 leo     all      male      49 tier1 drop         0.2  retire_rates_drop_tier1\n49 other   all      female    49 tier1 drop         0.16 retire_rates_drop_tier1\n50 other   all      male      49 tier1 drop         0.16 retire_rates_drop_tier1\n51 regular k12      female    50 tier1 drop         0.04 retire_rates_drop_tier1\n52 regular k12      male      50 tier1 drop         0.04 retire_rates_drop_tier1\n53 regular notk12   female    50 tier1 drop         0.1  retire_rates_drop_tier1\n54 regular notk12   male      50 tier1 drop         0.09 retire_rates_drop_tier1\n55 special all      female    50 tier1 drop         0.11 retire_rates_drop_tier1\n56 special all      male      50 tier1 drop         0.15 retire_rates_drop_tier1\n57 leo     all      female    50 tier1 drop         0.14 retire_rates_drop_tier1\n58 leo     all      male      50 tier1 drop         0.2  retire_rates_drop_tier1\n59 other   all      female    50 tier1 drop         0.16 retire_rates_drop_tier1\n60 other   all      male      50 tier1 drop         0.16 retire_rates_drop_tier1\n61 regular k12      female    51 tier1 drop         0.04 retire_rates_drop_tier1\n62 regular k12      male      51 tier1 drop         0.04 retire_rates_drop_tier1\n63 regular notk12   female    51 tier1 drop         0.12 retire_rates_drop_tier1\n64 regular notk12   male      51 tier1 drop         0.09 retire_rates_drop_tier1\n65 special all      female    51 tier1 drop         0.11 retire_rates_drop_tier1\n66 special all      male      51 tier1 drop         0.15 retire_rates_drop_tier1\n67 leo     all      female    51 tier1 drop         0.14 retire_rates_drop_tier1\n68 leo     all      male      51 tier1 drop         0.2  retire_rates_drop_tier1\n69 other   all      female    51 tier1 drop         0.16 retire_rates_drop_tier1\n70 other   all      male      51 tier1 drop         0.16 retire_rates_drop_tier1\n71 regular k12      female    52 tier1 drop         0.04 retire_rates_drop_tier1\n72 regular k12      male      52 tier1 drop         0.04 retire_rates_drop_tier1\n73 regular notk12   female    52 tier1 drop         0.14 retire_rates_drop_tier1\n74 regular notk12   male      52 tier1 drop         0.09 retire_rates_drop_tier1\n75 special all      female    52 tier1 drop         0.15 retire_rates_drop_tier1\n# ℹ 1,251 more rows\n\n\nCode\nsaveRDS(retrate2, fs::path(DIRS$work, \"retirement_rates.rds\"))",
+    "crumbs": [
+      "Retirement Rates",
+      "<span class='chapter-number'>18</span>  <span class='chapter-title'>Prepare: Retirement Rates</span>"
+    ]
+  },
+  {
+    "objectID": "test_retirement_rates.html",
+    "href": "test_retirement_rates.html",
+    "title": "19  Tests: Retirement rates",
+    "section": "",
+    "text": "Code\nGROOT &lt;- rprojroot::find_root(rprojroot::has_file(\".git/index\"))\nsource(fs::path(GROOT, \"data-raw\", \"R\", \"setup.R\"))\n\n\n\n\nCode\nretire_rates &lt;- readRDS(fs::path(DIRS$work, \"retirement_rates.rds\"))\n\n\n\n\nCode\nprint(\"no tests yet for retirement_rates\")\ntest_results &lt;- TRUE\n\n\n\n\nCode\nfpath &lt;- fs::path(DIRS$work, \"tests_retirement_rates.csv\")\n\nif (fs::file_exists(fpath)) {\n  fs::file_delete(fpath)\n}\n\ntibble(\n  test = \"all tests_retirement_rates tests passed\",\n  passed = test_results # all_tests_passed(test_results)\n) |&gt;\n  readr::write_csv(fpath)",
+    "crumbs": [
+      "Retirement Rates",
+      "<span class='chapter-number'>19</span>  <span class='chapter-title'>Tests: Retirement rates</span>"
+    ]
+  },
+  {
+    "objectID": "stage_retirement_rates.html",
+    "href": "stage_retirement_rates.html",
+    "title": "20  Stage: Retirees",
+    "section": "",
+    "text": "Code\nGROOT &lt;- rprojroot::find_root(rprojroot::has_file(\".git/index\"))\nsource(fs::path(GROOT, \"data-raw\", \"R\", \"setup.R\"))\n\n\n\n\nCode\nfpath &lt;- fs::path(DIRS$work, \"tests_retirement_rates.csv\")\nstatus &lt;- readr::read_csv(fpath)\n\nif (!all(status$passed)) {\n  stop(\"retiree tests failure\")\n}\n\nretirement_rates &lt;- readRDS(fs::path(DIRS$work, \"retirement_rates.rds\"))\n\nsaveRDS(retirement_rates, fs::path(DIRS$staged, \"retirement_rates.rds\"))",
+    "crumbs": [
+      "Retirement Rates",
+      "<span class='chapter-number'>20</span>  <span class='chapter-title'>Stage: Retirees</span>"
+    ]
+  },
+  {
+    "objectID": "headcount_salary.html",
+    "href": "headcount_salary.html",
+    "title": "21  Headcount and salary tables",
+    "section": "",
+    "text": "21.1 Define sheets, labels, bounds and other flip arguments for headcount and salary\nCode\n# make sure sheet names look right\n\n(hcsheets &lt;- stringr::str_subset(names(rawdata), \"headcount_\"))\n(salsheets &lt;- stringr::str_subset(names(rawdata), \"salary_\"))\nCode\n# the following arguments pertain both to headcount and salary\n\nrowvar &lt;- \"age\"\ncolvar &lt;- \"yos\"\n\nagelabel &lt;- data |&gt; pull(1)\nagelb &lt;- c(CONSTANTS$minage, seq(20, 65, 5), CONSTANTS$minage)\nageub &lt;- c(19, seq(24, 64, 5), CONSTANTS$maxage, CONSTANTS$maxage)\ncbind(agelabel, agelb, ageub)\n\nyoslabel &lt;- names(data)[-1] # for info only, not to be used\nyoslb &lt;- c(CONSTANTS$minyos, seq(5, 50, 5), CONSTANTS$minyos)\nyosub &lt;- c(seq(4, 49, 5), CONSTANTS$maxyos, CONSTANTS$maxyos)\ncbind(yoslabel, yoslb, yosub)",
+    "crumbs": [
+      "Salary & Headcount",
+      "<span class='chapter-number'>21</span>  <span class='chapter-title'>Headcount and salary tables</span>"
+    ]
+  },
+  {
+    "objectID": "headcount_salary.html#get-headcount-and-salary-sheets-and-create-a-long-tibble",
+    "href": "headcount_salary.html#get-headcount-and-salary-sheets-and-create-a-long-tibble",
+    "title": "21  Headcount and salary tables",
+    "section": "21.2 Get headcount and salary sheets and create a long tibble",
+    "text": "21.2 Get headcount and salary sheets and create a long tibble\n\n\nCode\nsheet_names &lt;- c(hcsheets, salsheets)\n\nlong1 &lt;- flip_stack(\n  sheet_names,\n  rawdata,\n  rowvar,\n  colvar,\n  rowlb = agelb,\n  rowub = ageub,\n  collb = yoslb,\n  colub = yosub\n)\nskimr::skim(long1)\nglimpse(long1)\n\nhcs_tbl &lt;- long1 |&gt;\n  rename(class = group) |&gt;\n  mutate(\n    rectype = case_when(\n      age_label == \"Total Count\" ~ \"total\",\n      yos_label == \"All Years\" ~ \"total\",\n      .default = \"detail\"\n    )\n  )\n\n# save the first-cut headcount-salary table in the plan's working directory so that we can use it in tests\nsaveRDS(hcs_tbl, fs::path(DIRS$work, \"hcs_tbl.rds\"))\n\n\n\n\nCode\nglimpse(hcs_tbl)\nsummary(hcs_tbl) # no missing values\nskimr::skim_without_charts(hcs_tbl)\nskimr::skim(hcs_tbl)\ncount(hcs_tbl, age_lb, age_ub, age_label)\ncount(hcs_tbl, yos_lb, yos_ub, yos_label) # note that yos max is 1 less than what the label shows\ncount(hcs_tbl, variable, class)\ncount(hcs_tbl, variable, rectype)",
+    "crumbs": [
+      "Salary & Headcount",
+      "<span class='chapter-number'>21</span>  <span class='chapter-title'>Headcount and salary tables</span>"
+    ]
+  },
+  {
+    "objectID": "headcount_salary.html#tests-headcount-salary-data",
+    "href": "headcount_salary.html#tests-headcount-salary-data",
+    "title": "21  Headcount and salary tables",
+    "section": "21.3 Tests: Headcount-salary data",
+    "text": "21.3 Tests: Headcount-salary data\nFor now, put tests inline. Maybe later, move or add them to package tests.\n\n\nCode\ntestthat::local_edition(3)\n# library(testthat)\n\n# NOTE: We can only run the headcount_salary tests if a plan's headcount and salary data has row and column totals\ntest_results &lt;- testthat::test_file(\n  fs::path(GROOT, \"data-raw/plans/tests/testthat/test_headcount_salary.R\"),\n  reporter = testthat::TapReporter$new()\n)\n\n\n\n\nCode\nfpath &lt;- fs::path(DIRS$work, \"tests_headcount_salary.csv\")\n\nif (fs::file_exists(fpath)) {\n  fs::file_delete(fpath)\n}\n\ntibble(\n  test = \"all headcount-salary tests passed\",\n  passed = all_tests_passed(test_results)\n) |&gt;\n  readr::write_csv(fpath)",
+    "crumbs": [
+      "Salary & Headcount",
+      "<span class='chapter-number'>21</span>  <span class='chapter-title'>Headcount and salary tables</span>"
+    ]
+  },
+  {
+    "objectID": "headcount_salary.html#stage-if-headcount-salary-data-tests-pass-clean-and-stage-data",
+    "href": "headcount_salary.html#stage-if-headcount-salary-data-tests-pass-clean-and-stage-data",
+    "title": "21  Headcount and salary tables",
+    "section": "21.4 Stage: If headcount-salary data tests pass, clean and stage data",
+    "text": "21.4 Stage: If headcount-salary data tests pass, clean and stage data\n\n\nCode\nfpath &lt;- fs::path(DIRS$work, \"tests_headcount_salary.csv\")\nstatus &lt;- readr::read_csv(fpath)\n\n# remove the totals records\n# drop unnecessary columns\n# make wide\n# sort\nif (status$passed) {\n  hcs_tbl &lt;- readRDS(fs::path(DIRS$work, \"hcs_tbl.rds\"))\n\n  # glimpse(hcs_tbl)\n  headcount_salary &lt;- hcs_tbl |&gt;\n    filter(rectype == \"detail\") |&gt;\n    select(-rectype) |&gt;\n    pivot_wider(names_from = variable) |&gt;\n    arrange(class, age_lb, age_ub, yos_lb, yos_ub)\n\n  # skimr::skim(headcount_salary) # make sure no missing values and no implausible values\n  saveRDS(headcount_salary, fs::path(DIRS$staged, \"headcount_salary.rds\"))\n}",
+    "crumbs": [
+      "Salary & Headcount",
+      "<span class='chapter-number'>21</span>  <span class='chapter-title'>Headcount and salary tables</span>"
+    ]
+  },
+  {
+    "objectID": "salary_growth.html",
+    "href": "salary_growth.html",
+    "title": "22  Salary-growth table",
+    "section": "",
+    "text": "22.1 After all tests are passed save file to staging area\nCode\nsaveRDS(sg1, fs::path(DIRS$staged, \"salarygrowth.rds\"))\n\n# remove the totals records\n# drop unnecessary columns\n# make wide\n# sort\n\n# headcount_salary &lt;- hcs_tbl |&gt;\n#   filter(rectype == \"detail\") |&gt;\n#   select(-rectype) |&gt;\n#   pivot_wider(names_from = variable) |&gt;\n#   arrange(class, age_lb, age_ub, yos_lb, yos_ub)",
+    "crumbs": [
+      "Salary growth",
+      "<span class='chapter-number'>22</span>  <span class='chapter-title'>Salary-growth table</span>"
+    ]
+  },
+  {
+    "objectID": "withdrawal.html",
+    "href": "withdrawal.html",
+    "title": "23  Withdrawal tables",
+    "section": "",
+    "text": "23.1 Observations\nThe withdrawal tables do NOT have row or column totals",
+    "crumbs": [
+      "Withdrawals",
+      "<span class='chapter-number'>23</span>  <span class='chapter-title'>Withdrawal tables</span>"
+    ]
+  },
+  {
+    "objectID": "withdrawal.html#steps",
+    "href": "withdrawal.html#steps",
+    "title": "23  Withdrawal tables",
+    "section": "23.2 Steps",
+    "text": "23.2 Steps\nFor Reason’s file-reading see “Florida FRS model input.R”. Steps are based on Reason “Florida FRS benefit model.R” function get_separation_table(class_name) – see appendix:\n\nBy class, get average of male and female tables where both are available (regular, special, admin, senior_management); otherwise use unisex table\nAdd a row for each yos beyond highest yos in the table up until max yos; fill with the value for the highest yos\n\n\n\nCode\n# make sure sheet names look right\n\n(sheet_names &lt;- stringr::str_subset(names(rawdata), \"withdrawal_\"))\n\n\n\n\nCode\n# note that withdrawal tables are yos x age (headcount & salary were age x yos)\nrowvar &lt;- \"yos\"\ncolvar &lt;- \"age\"\n\n# 31 rows\nyoslabel &lt;- data |&gt; pull(1)\nyoslb &lt;- yoslabel |&gt; stringr::str_remove(coll(\"+\")) |&gt; as.integer()\nyosub &lt;- ifelse(yoslb == max(yoslb), CONSTANTS$maxyos, yoslb)\ncbind(yoslabel, yoslb, yosub)\n\n# 6 columns\n# under_25  25_to_29    30_to_34    35_to_44    45_to_54    55+\nagelabel &lt;- names(data)[-1] # for info only, not to be used\nagelb &lt;- c(CONSTANTS$minage, 25, 30, 35, 45, 55)\nageub &lt;- c(agelb[-1] - 1, CONSTANTS$maxage)\ncbind(agelabel, agelb, ageub)\n\n\n\n\nCode\nlong1 &lt;- flip_stack(\n  sheet_names,\n  rawdata,\n  rowvar,\n  colvar,\n  rowlb = yoslb,\n  rowub = yosub,\n  collb = agelb,\n  colub = ageub\n)\n\nglimpse(long1)\ncount(long1, variable, group)\n\nlong2 &lt;- long1 |&gt;\n  # get better way for defining class\n  mutate(\n    class = stringr::str_remove(group, \"female_\"),\n    class = stringr::str_remove(class, \"male_\"),\n    class = ifelse(class == \"senior_mgt\", \"senior_management\", class)\n  ) |&gt;\n  relocate(class, .after = group)\n\nglimpse(long2)\ncount(long2, group, class)\nskimr::skim(long2) # some large values; no missing values\n\nlong2 |&gt; filter(value &gt;= .2) # only occurs for yos 0\n\n# collapse by class with averaging, thereby averaging male and female\nlong3 &lt;- long2 |&gt;\n  summarise(\n    value = mean(value),\n    .by = c(class, starts_with(\"yos\"), starts_with(\"age\"))\n  )\nglimpse(long3)\nskimr::skim(long3) # note that p100 for averages is smaller than before\n\n# extend the tibble to all possible yos as Reason does\nlong4 &lt;- long3 |&gt;\n  group_by(class, age_label, age_lb, age_ub) |&gt;\n  complete(yos_lb = 31:CONSTANTS$maxyos) |&gt;\n  arrange(yos_lb, .by_group = TRUE) |&gt;\n  fill(value, .direction = \"down\") |&gt;\n  ungroup() |&gt;\n  # reconstruct yos_label and yos_ub\n  mutate(yos_ub = yos_lb, yos_label = as.character(yos_lb)) |&gt;\n  arrange(class, yos_lb, age_lb) |&gt;\n  select(class, yos_label, yos_lb, yos_ub, age_label, age_lb, age_ub, value)\n\nglimpse(long4)\nskimr::skim(long4)\ncount(long4, yos_lb, yos_ub, yos_label)\n\n# save before final computations\nsaveRDS(long4, file = fs::path(DIRS$work, \"withdrawal_prelim.rds\"))\n\n\nThis next part strikes me as suboptimal.\n\n\nCode\n# final computations\nwd1 &lt;- readRDS(fs::path(DIRS$work, \"withdrawal_prelim.rds\"))\nskimr::skim(wd1)",
+    "crumbs": [
+      "Withdrawals",
+      "<span class='chapter-number'>23</span>  <span class='chapter-title'>Withdrawal tables</span>"
+    ]
+  },
+  {
+    "objectID": "withdrawal.html#after-all-tests-are-passed-save-file-to-staging-area",
+    "href": "withdrawal.html#after-all-tests-are-passed-save-file-to-staging-area",
+    "title": "23  Withdrawal tables",
+    "section": "23.3 After all tests are passed save file to staging area",
+    "text": "23.3 After all tests are passed save file to staging area\n\n\nCode\nwd1 &lt;- readRDS(fs::path(DIRS$work, \"withdrawal_prelim.rds\"))\nskimr::skim(wd1)\nglimpse(wd1)\n\nsaveRDS(wd1, fs::path(DIRS$staged, \"withdrawal.rds\"))\n\n# remove the totals records\n# drop unnecessary columns\n# make wide\n# sort",
+    "crumbs": [
+      "Withdrawals",
+      "<span class='chapter-number'>23</span>  <span class='chapter-title'>Withdrawal tables</span>"
+    ]
+  },
+  {
+    "objectID": "withdrawal.html#appendix-structure-of-the-withdrawal-tables",
+    "href": "withdrawal.html#appendix-structure-of-the-withdrawal-tables",
+    "title": "23  Withdrawal tables",
+    "section": "23.4 Appendix: Structure of the withdrawal tables",
+    "text": "23.4 Appendix: Structure of the withdrawal tables",
+    "crumbs": [
+      "Withdrawals",
+      "<span class='chapter-number'>23</span>  <span class='chapter-title'>Withdrawal tables</span>"
+    ]
+  },
+  {
+    "objectID": "withdrawal.html#appendix-reason-get_separation_table-function",
+    "href": "withdrawal.html#appendix-reason-get_separation_table-function",
+    "title": "23  Withdrawal tables",
+    "section": "23.5 Appendix: Reason get_separation_table() function",
+    "text": "23.5 Appendix: Reason get_separation_table() function\nThis function is informational only, to show how Reason approached data preparation for the withdrawal (i.e., term rate) tables.\nNote that it does many things including merging against retirement rate tables.\nAmong other things:\n\nit expands grid to cover all combinations of entry years, term ages, and yos\nVERIFY (1970-2100 w/b ~ 130, 50-90 w/b ~ 40, 0-50 wb ~ 50 = 130 x 40 x 50 = 260k) entry_year = entry_year_range_, term_age = age_range_, yos = yos_range_\n\n\n\nCode\nget_separation_table &lt;- function(class_name) {\n  # class_name &lt;- gsub(\" \", \"_\", class_name)\n  class_name &lt;- str_replace(class_name, \" \", \"_\")\n\n  assign(\n    \"term_rate_male_table\",\n    get(paste0(class_name, \"_term_rate_male_table_\"))\n  )\n  assign(\n    \"term_rate_female_table\",\n    get(paste0(class_name, \"_term_rate_female_table_\"))\n  )\n\n  assign(\n    \"normal_retire_rate_tier_1_table\",\n    get(paste0(class_name, \"_normal_retire_rate_tier_1_table\"))\n  )\n  assign(\n    \"normal_retire_rate_tier_2_table\",\n    get(paste0(class_name, \"_normal_retire_rate_tier_2_table\"))\n  )\n\n  assign(\n    \"early_retire_rate_tier_1_table\",\n    get(paste0(class_name, \"_early_retire_rate_tier_1_table\"))\n  )\n  assign(\n    \"early_retire_rate_tier_2_table\",\n    get(paste0(class_name, \"_early_retire_rate_tier_2_table\"))\n  )\n\n  assign(\n    \"entrant_profile_table\",\n    get(paste0(class_name, \"_entrant_profile_table\"))\n  )\n\n  term_rate_table &lt;- ((term_rate_male_table + term_rate_female_table) / 2) %&gt;%\n    add_row(yos = (max(term_rate_male_table$yos) + 1):max(yos_range_)) %&gt;%\n    fill(everything(), .direction = \"down\")\n\n  breaks &lt;- c(-Inf, 24, 29, 34, 44, 54, Inf)\n  labels &lt;- names(term_rate_table)[-1]\n\n  long_term_rate_table &lt;- pivot_longer(\n    term_rate_table,\n    cols = -yos,\n    names_to = \"age_group\",\n    values_to = \"term_rate\"\n  )\n\n  sep_rate_table &lt;- expand_grid(\n    entry_year = entry_year_range_,\n    term_age = age_range_,\n    yos = yos_range_\n  ) %&gt;%\n    mutate(\n      entry_age = term_age - yos,\n      term_year = entry_year + yos,\n      age_group = cut(term_age, breaks, labels)\n    ) %&gt;%\n    filter(entry_age %in% entrant_profile_table$entry_age) %&gt;%\n    arrange(entry_year, entry_age, term_age) %&gt;%\n    left_join(long_term_rate_table) %&gt;%\n    left_join(\n      normal_retire_rate_tier_1_table %&gt;%\n        rename(normal_retire_rate_tier_1 = normal_retire_rate),\n      by = c(\"term_age\" = \"age\")\n    ) %&gt;%\n    left_join(\n      normal_retire_rate_tier_2_table %&gt;%\n        rename(normal_retire_rate_tier_2 = normal_retire_rate),\n      by = c(\"term_age\" = \"age\")\n    ) %&gt;%\n    left_join(\n      early_retire_rate_tier_1_table %&gt;%\n        rename(early_retire_rate_tier_1 = early_retire_rate),\n      by = c(\"term_age\" = \"age\")\n    ) %&gt;%\n    left_join(\n      early_retire_rate_tier_2_table %&gt;%\n        rename(early_retire_rate_tier_2 = early_retire_rate),\n      by = c(\"term_age\" = \"age\")\n    ) %&gt;%\n    group_by(entry_year, entry_age) %&gt;%\n    fill(contains(\"retire_rate\"), .direction = \"downup\") %&gt;%\n    ungroup() %&gt;%\n    mutate(\n      tier_at_term_age = get_tier(class_name, entry_year, term_age, yos),\n      separation_rate = case_when(\n        tier_at_term_age %in% c(\"tier_3_norm\", \"tier_2_norm\") ~\n          normal_retire_rate_tier_2,\n        tier_at_term_age %in% c(\"tier_3_early\", \"tier_2_early\") ~\n          early_retire_rate_tier_2,\n        tier_at_term_age == \"tier_1_norm\" ~ normal_retire_rate_tier_1,\n        tier_at_term_age == \"tier_1_early\" ~ early_retire_rate_tier_1,\n        str_detect(tier_at_term_age, \"vested\") ~ term_rate\n      )\n    ) %&gt;%\n    group_by(entry_year, entry_age) %&gt;%\n    mutate(\n      remaining_prob = cumprod(1 - lag(separation_rate, default = 0)),\n      separation_prob = lag(remaining_prob, default = 1) - remaining_prob\n    ) %&gt;%\n    ungroup() %&gt;%\n    select(\n      entry_year,\n      entry_age,\n      term_age,\n      yos,\n      term_year,\n      separation_rate,\n      remaining_prob,\n      separation_prob\n    )\n\n  return(sep_rate_table)\n}",
+    "crumbs": [
+      "Withdrawals",
+      "<span class='chapter-number'>23</span>  <span class='chapter-title'>Withdrawal tables</span>"
+    ]
+  },
+  {
+    "objectID": "assemble_list.html",
+    "href": "assemble_list.html",
+    "title": "24  Assemble list",
+    "section": "",
+    "text": "Code\nGROOT &lt;- rprojroot::find_root(rprojroot::has_file(\".git/index\"))\nsource(fs::path(GROOT, \"data-raw\", \"R\", \"setup.R\"))\n\n\n\n\nCode\nrds_files &lt;- fs::dir_ls(DIRS$staged, glob = \"*.rds\")\n\nelement_names &lt;- rds_files |&gt;\n  path_file() |&gt;\n  path_ext_remove()\n\nplan &lt;- rds_files |&gt;\n  purrr::map(readRDS) |&gt;\n  rlang::set_names(element_names)\n\nplan &lt;- append(list(plan_shortname = PLAN_CONSTANTS$plan), plan)\n\nassign(PLAN_CONSTANTS$plan, plan) # Assign 'plan' to the new name (no intermediate variable)\n\n# devtools::load_all()\n# check &lt;- pendata::frs\n\n\n\n\nCode\nsave_name &lt;- paste0(PLAN_CONSTANTS$plan, \".rda\")\nfpath &lt;- fs::path(DIRS$work, save_name)\nsave(list = PLAN_CONSTANTS$plan, file = fpath, compress = \"xz\")\n\n# later use this:\n# save_name &lt;- paste0(PLAN_CONSTANTS$plan, \".rda\")\n# fpath &lt;- fs::path(GROOT, \"data\", save_name)\n# save(list = PLAN_CONSTANTS$plan, file = fpath, compress = \"xz\")",
+    "crumbs": [
+      "Assemble list for `pendata` package",
+      "<span class='chapter-number'>24</span>  <span class='chapter-title'>Assemble list</span>"
+    ]
+  },
+  {
+    "objectID": "make_params.html",
+    "href": "make_params.html",
+    "title": "25  Make params – a temporary step",
+    "section": "",
+    "text": "25.1 Setup, get preliminary list, and target data\nCode\nGROOT &lt;- rprojroot::find_root(rprojroot::has_file(\".git/index\"))\nsource(fs::path(GROOT, \"data-raw\", \"R\", \"setup.R\"))\nlibrary(btools)",
+    "crumbs": [
+      "Make params",
+      "<span class='chapter-number'>25</span>  <span class='chapter-title'>Make params -- a temporary step</span>"
+    ]
+  },
+  {
+    "objectID": "make_params.html#load-and-examine-my-frs-data",
+    "href": "make_params.html#load-and-examine-my-frs-data",
+    "title": "25  Make params – a temporary step",
+    "section": "25.2 Load and examine my frs data",
+    "text": "25.2 Load and examine my frs data\n\n\nCode\n# get list from working folder\n\nlist_name &lt;- \"frs.rda\"\nfpath &lt;- fs::path(DIRS$work, list_name)\nload(fpath)\n\n\n\n\nCode\nfrsd_info &lt;- tibble(\n  obj = 1:length(names(frs)),\n  name = names(frs)\n) |&gt;\n  mutate(\n    type = case_when(\n      str_detect(name, \"table\") ~ \"table\",\n      str_sub(name, -1) == \"_\" ~ \"global\",\n      .default = \"other\"\n    )\n  )\n\ncount(frsd_info, type)",
+    "crumbs": [
+      "Make params",
+      "<span class='chapter-number'>25</span>  <span class='chapter-title'>Make params -- a temporary step</span>"
+    ]
+  },
+  {
+    "objectID": "make_params.html#load-and-categorize-the-target-params-data-from-gang-globals-tables-other",
+    "href": "make_params.html#load-and-categorize-the-target-params-data-from-gang-globals-tables-other",
+    "title": "25  Make params – a temporary step",
+    "section": "25.3 Load and categorize the “target” params data from Gang – globals, tables, other",
+    "text": "25.3 Load and categorize the “target” params data from Gang – globals, tables, other\n\n\nCode\n# C:\\Users\\donbo\\Documents\\R_Projects\\pendata\\data-raw\\gang\\params_bf_cal.RData\nfpath &lt;- fs::path(GROOT, \"data-raw\", \"gang\", \"params_bf_cal.RData\")\nload(fpath) # loads params, an environment\nparamsg &lt;- params\nrm(params)\n\nparamsg_info &lt;- tibble(\n  obj = 1:length(names(paramsg)),\n  name = names(paramsg)\n) |&gt;\n  mutate(\n    type = case_when(\n      str_detect(name, \"table\") ~ \"table\",\n      str_sub(name, -1) == \"_\" ~ \"global\",\n      .default = \"other\"\n    )\n  )\n\ncount(paramsg_info, type)\n#   type       n\n#   &lt;chr&gt;  &lt;int&gt;\n# 1 global   110\n# 2 other      5\n# 3 table     52\n\nparamsg_info |&gt; filter(type == \"other\")",
+    "crumbs": [
+      "Make params",
+      "<span class='chapter-number'>25</span>  <span class='chapter-title'>Make params -- a temporary step</span>"
+    ]
+  },
+  {
+    "objectID": "make_params.html#globals",
+    "href": "make_params.html#globals",
+    "title": "25  Make params – a temporary step",
+    "section": "25.4 Globals",
+    "text": "25.4 Globals\n\n\nCode\n# what globals does Gang have in params?\npglobals &lt;- paramsg_info |&gt;\n  filter(type == \"global\") |&gt;\n  arrange(name) |&gt;\n  pull(name) # 110 globals\npglobals # gang's globals\n\n# what globals do I have in frs?\ndglobals &lt;- names(frs$constants_assumptions) |&gt; sort() # 110 items\ndglobals # my globals\n\n# compare the two sets of globals\n\nsetdiff(dglobals, pglobals)\n#  [1] \"admin_model_al_\" \"admin_model_norm_cost_\" \"admin_val_al_\" \"eco_model_al_\" \"eco_model_norm_cost_\"\n#  [6] \"eco_val_al_\" \"eso_model_al_\" \"eso_model_norm_cost_\" \"eso_val_al_\" \"judges_model_al_\"\n# [11] \"judges_model_norm_cost_\" \"judges_val_al_\" \"regular_model_al_\" \"regular_model_norm_cost_\" \"regular_val_al_\"\n# [16] \"senior_management_model_al_\" \"senior_management_model_norm_cost_\" \"senior_management_val_al_\" \"special_model_al_\" \"special_model_norm_cost_\"\n# [21] \"special_val_al_\"\n\n\n\n25.4.1 Fix globals that are in both Gang’s and my data but I haven’t yet constructed values\nThese really should be calculated in penmodel!\nCreate fixed_matches – which are all matches, including my now calculated values\n\n\nCode\n(matching_global_names &lt;- intersect(pglobals, dglobals))\n\ngang_globals &lt;- mget(matching_global_names, envir = paramsg, inherits = FALSE)\ndon_globals &lt;- frs$constants_assumptions[matching_global_names]\n\ngmatches &lt;- enframe(gang_globals, name = \"name\", value = \"gang\") |&gt;\n  mutate(gang = unlist(gang))\n\ndmatches &lt;- enframe(don_globals, name = \"name\", value = \"don\") |&gt;\n  mutate(don = unlist(don))\n\ngdmatches &lt;- left_join(gmatches, dmatches, by = join_by(name))\n\ntofix &lt;- gdmatches |&gt;\n  filter(don != gang)\n\nconstants_vec &lt;- unlist(frs$constants_assumptions)\nconstants_vec[\"ben_payment_ratio_\"] &lt;- paramsg$ben_payment_ratio_ # I am missing this -- why? djb\ntofix2 &lt;- tofix |&gt;\n  separate_wider_delim(\n    cols = don,\n    names = c(\"var1\", \"operator\", \"var2\"),\n    delim = \" \",\n    too_few = \"align_start\",\n    cols_remove = FALSE\n  ) |&gt;\n  mutate(\n    val1 = case_when(\n      str_detect(var1, \"^\\\\s*-?\\\\d*\\\\.?\\\\d+(e[+-]?\\\\d+)?\\\\s*$\") ~\n        as.numeric(var1),\n      var1 %in% names(constants_vec) ~ as.numeric(constants_vec[var1]),\n      .default = NA_real_\n    ),\n    val2 = case_when(\n      str_detect(var2, \"^\\\\s*-?\\\\d*\\\\.?\\\\d+(e[+-]?\\\\d+)?\\\\s*$\") ~\n        as.numeric(var2),\n      var2 %in% names(constants_vec) ~ as.numeric(constants_vec[var2]),\n      .default = NA_real_\n    ),\n    fixed = case_when(\n      operator == \"*\" ~ val1 * val2,\n      operator == \"-\" ~ val1 - val2,\n      operator == \"/\" ~ val1 / val2,\n      is.na(operator) ~ val1,\n      .default = NA_real_\n    )\n  ) |&gt;\n  mutate(diff = fixed - as.numeric(gang)) |&gt;\n  arrange(desc(abs(diff)))\ntofix2\n\nfrs$constants_assumptions[\"admin_outflow_\"]\n\n\n# fixed_matches\nall_matches &lt;- frs$constants_assumptions[matching_global_names]\nnames_of_fixvalues &lt;- tofix2 |&gt; pull(name)\nfixed_values &lt;- tofix2 |&gt; pull(fixed)\nfixed_matches &lt;- all_matches\nfixed_matches[names_of_fixvalues] &lt;- fixed_values\n\n\n\n\n25.4.2 Create missing globals that are not in my data\nThese are model assumptions and similar that should be defined when the model runs!\n\n\nCode\n# create fglob -- filled-in globals ----\n\n(missing_global_names &lt;- setdiff(pglobals, dglobals)) # 21 missing globals\n# [1] \"age_range_\" \"class_name_\" \"class_names_\" \"class_names_no_drop_frs_\" \"class_names_no_frs_\" \"entry_year_range_\"\n# [7] \"max_age_\" \"max_year_\" \"min_age_\" \"min_year_\" \"model_period_\" \"model_return_\"\n# [13] \"nc_cal_\" \"new_year_\" \"return_2023_\" \"return_scen_\" \"return_scenarios_original_\" \"start_year_\"\n# [19] \"term_rate_\" \"year_range_\" \"yos_range_\"\n\n# some of the missing globals are tibbles, we won't worry about them yet\nmissing_globals &lt;- mget(missing_global_names, envir = paramsg, inherits = FALSE)\n\nfglob &lt;- list()\n# model items and assumptions -- these normally would not be included in pendata\nfglob$model_period_ &lt;- 30\nfglob$model_return_ &lt;- .067\nfglob$return_2023_ &lt;- .067\nfglob$return_scen_ &lt;- \"assumption\"\nfglob$return_scenarios_original_ &lt;- paramsg$return_scenarios_original_\n\n# class names\nfglob$class_names_no_drop_frs_ &lt;- unique(frs$headcount_salary$class)\nfglob$class_names_no_drop_frs_ &lt;- fglob$class_names_no_drop_frs_[order(match(\n  fglob$class_names_no_drop_frs_,\n  paramsg$class_names_no_drop_frs_\n))] # put in Gang's order\n\nfglob$class_names_no_frs_ &lt;- c(fglob$class_names_no_drop_frs_, \"drop\")\nfglob$class_names_ &lt;- c(fglob$class_names_no_frs_, \"frs\")\nfglob$class_name_ &lt;- fglob$class_names_[1]\n\n# age items\nfglob$min_age_ &lt;- CONSTANTS$minage\nfglob$max_age_ &lt;- CONSTANTS$maxage\nfglob$age_range_ &lt;- fglob$min_age_:fglob$max_age_\n\n# year items\nfglob$min_year_ &lt;- 1970\nfglob$max_year_ &lt;- 2154\nfglob$year_range_ &lt;- fglob$min_year_:fglob$max_year_\nfglob$entry_year_range_ &lt;- fglob$min_year_:2052\nfglob$new_year_ &lt;- 2024\nfglob$start_year_ &lt;- 2022\n\n# yos items\nfglob$yos_range_ &lt;- CONSTANTS$minyos:CONSTANTS$maxyos\n\n(togo &lt;- setdiff(missing_global_names, names(fglob)))\nmissing_globals[togo]\n\n# construct the calibration factors nc_cal_\nfca &lt;- frs$constants_assumptions\nvals &lt;- str_subset(names(fca), \"val_norm_cost_\") |&gt; sort()\ntext &lt;- str_subset(names(fca), \"nc_cal_\") |&gt; sort()\n# fca[vals]\n# fca[text]\nfglob$nc_cal_ &lt;- tibble(\n  vname = vals,\n  vnc = unlist(fca[vals]),\n  vname2 = text,\n  textvals = unlist(fca[text])\n) |&gt;\n  mutate(\n    class = str_remove(vname, \"_val_norm_cost_\"),\n    calfactor = as.numeric(stringr::str_extract(textvals, \"[0-9.]+$\")),\n    nc_cal_ = vnc / calfactor\n  ) |&gt;\n  select(class, nc_cal_)\n\n# $nc_cal_\n# # A tibble: 7 × 2\n#   class             nc_cal_\n#   &lt;chr&gt;               &lt;dbl&gt;\n# 1 admin               1.40\n# 2 eco                 0.828\n# 3 eso                 0.940\n# 4 judges              0.917\n# 5 regular             0.985\n# 6 senior_management   0.961\n# 7 special             0.985\n\n(togo &lt;- setdiff(missing_global_names, names(fglob)))\nmissing_globals[togo]\n\n# use Gang's term_rate_ tables ----\nfglob$term_rate_ &lt;- paramsg$term_rate_ # use Gang's now -- mine contains values constructed later in the process!\n\n# finally, construct the term rate table\n# it has male and female but pendata should only give total what total would it give\n\n\n\n\n25.4.3 Some checks on missing globals\n\n\nCode\ncheck &lt;- paramsg$term_rate_ |&gt;\n  summarise(rate = mean(rate), .by = c(yos, class, age)) |&gt;\n  arrange(yos, class, age)\n# compare to what I have\ncount(frs$withdrawal, age_label)\ncheck2 &lt;- frs$withdrawal |&gt;\n  select(yos = yos_lb, class, age = age_label, rate = value) |&gt;\n  mutate(age = ifelse(age == \"55+\", \"over_55\", age)) |&gt;\n  arrange(yos, class, age)\n\ncomp &lt;- bind_rows(\n  check |&gt; mutate(type = \"gang\"),\n  check2 |&gt; mutate(type = \"don\")\n) |&gt;\n  pivot_wider(names_from = type, values_from = rate) |&gt;\n  mutate(diff = don - gang) |&gt;\n  arrange(class, yos, age)\ncomp\n\ntemp &lt;- comp |&gt; filter(is.na(gang) | is.na(don))\n# gang does not have admin yos 31 -- apparently I gave yos_lb 31 label to 30+\ntemp2 &lt;- paramsg$term_rate_ |&gt; filter(class == \"admin\")\n\n\n\n\n25.4.4 Combine matched globals and missing globals into globals list\n\n\nCode\nglobals &lt;- c(fixed_matches, fglob)\nns(globals) # 110 values",
+    "crumbs": [
+      "Make params",
+      "<span class='chapter-number'>25</span>  <span class='chapter-title'>Make params -- a temporary step</span>"
+    ]
+  },
+  {
+    "objectID": "make_params.html#tables",
+    "href": "make_params.html#tables",
+    "title": "25  Make params – a temporary step",
+    "section": "25.5 Tables",
+    "text": "25.5 Tables\n\n\nCode\n# what globals does Gang have in params?\nptables &lt;- paramsg_info |&gt;\n  filter(type == \"table\") |&gt;\n  arrange(name) |&gt;\n  pull(name) # 110 globals\nptables\n\n# what tables do I have in frs?\ndtables &lt;- names(frs$constants_assumptions) |&gt; sort() # 110 items\ndtables\n\n\n\n25.5.1 Headcount and salary tables\n\n\nCode\n# headcount salary\nnames(paramsg) |&gt; str_subset(\"headcount\") # headcount_table_ is the main one\nnames(paramsg) |&gt; str_subset(\"salary\") # salary_table_ is the main one\n\n\nPut age and yos on the file to match how Reason defines them.\n\n\nCode\nns(paramsg)\nns(frs)\n# gang's headcount and salary table(s) ----\nparamsg$headcount_table_\n# A tibble: 847 × 4\n#     age class     yos count\n#   &lt;dbl&gt; &lt;chr&gt;   &lt;dbl&gt; &lt;dbl&gt;\n# 1    20 regular     2   754\nparamsg$salary_table_\n# # A tibble: 847 × 4\n#      age class     yos salary\n#    &lt;dbl&gt; &lt;chr&gt;   &lt;dbl&gt;  &lt;dbl&gt;\n#  1    20 regular     2  14714\n#  2    20 regular     7     NA\ncount(paramsg$salary_table_, age)\n# age     n\n#    &lt;dbl&gt; &lt;int&gt;\n#  1    20    77\n#  2    22    77\n#  3    27    77\n#  4    32    77\n#  5    37    77\n#  6    42    77\n#  7    47    77\n#  8    52    77\n#  9    57    77\n# 10    62    77\n# 11    67    77\n\ncount(paramsg$salary_table_, yos)\n# A tibble: 11 × 2\n#      yos     n\n#    &lt;dbl&gt; &lt;int&gt;\n#  1     2    77\n#  2     7    77\n#  3    12    77\n#  4    17    77\n#  5    22    77\n#  6    27    77\n#  7    32    77\n#  8    37    77\n#  9    42    77\n# 10    47    77\n# 11    52    77\n\nfrs$headcount_salary\n# A tibble: 847 × 9\n#    class age_label age_lb age_ub yos_label yos_lb yos_ub headcount salary\n#    &lt;chr&gt; &lt;chr&gt;      &lt;dbl&gt;  &lt;dbl&gt; &lt;chr&gt;      &lt;dbl&gt;  &lt;dbl&gt;     &lt;dbl&gt;  &lt;dbl&gt;\n#  1 admin Under 20      18     19 Under 5        0      4         0      0\n#  2 admin Under 20      18     19 5 to 10        5      9         0      0\ncount(frs$headcount_salary, age_lb, age_ub, age_label)\n# A tibble: 11 × 4\n#    age_lb age_ub age_label     n\n#     &lt;dbl&gt;  &lt;dbl&gt; &lt;chr&gt;     &lt;int&gt;\n#  1     18     19 Under 20     77\n#  2     20     24 20 to 24     77\n#  3     25     29 25 to 29     77\n#  4     30     34 30 to 34     77\n#  5     35     39 35 to 39     77\n#  6     40     44 40 to 44     77\n#  7     45     49 45 to 49     77\n#  8     50     54 50 to 54     77\n#  9     55     59 55 to 59     77\n# 10     60     64 60 to 64     77\n# 11     65    120 65 & Up      77\n\ncount(frs$headcount_salary, yos_lb, yos_ub, yos_label)\n#    yos_lb yos_ub yos_label     n\n#     &lt;dbl&gt;  &lt;dbl&gt; &lt;chr&gt;     &lt;int&gt;\n#  1      0      4 Under 5      77\n#  2      5      9 5 to 10      77\n#  3     10     14 10 to 15     77\n#  4     15     19 15 to 20     77\n#  5     20     24 20 to 25     77\n#  6     25     29 25 to 30     77\n#  7     30     34 30 to 35     77\n#  8     35     39 35 to 40     77\n#  9     40     44 40 to 45     77\n# 10     45     49 45 to 50     77\n# 11     50     70 50 & Up      77\n# becomes 2-52 by 5 which is yos_lb + 2\n\nprep &lt;- frs$headcount_salary |&gt;\n  mutate(\n    age = case_when(\n      age_lb == 18 ~ 20,\n      age_lb == 65 ~ 67,\n      .default = (age_lb + age_ub) / 2\n    ),\n    yos = yos_lb + 2\n  )\ncount(prep, age, age_lb, age_ub, age_label)\ncount(prep, yos, yos_lb, yos_ub, yos_label)\n\n\n\n25.5.1.1 Match params format for headcount and salar ytables\nHeadcount table: age class yos count Salary table: age class yos salary\nNOTE that paramsg\\(salary_table_ has NA values where as paramsg\\)headcount_table_ has zeros!\nI AM USING ZEROES FOR BOTH TABLES.\n\n\nCode\nheadcount_table_ &lt;- prep |&gt;\n  select(age, class, yos, count = headcount)\n\nsalary_table_ &lt;- prep |&gt;\n  select(age, class, yos, salary)\n\n\n\n\n\n25.5.2 Combine tables into a list\n\n\nCode\ntables &lt;- list()\ntables$headcount_table_ &lt;- headcount_table_\ntables$salary_table_ &lt;- salary_table_\nns(tables)",
+    "crumbs": [
+      "Make params",
+      "<span class='chapter-number'>25</span>  <span class='chapter-title'>Make params -- a temporary step</span>"
+    ]
+  },
+  {
+    "objectID": "make_params.html#construct-params-list-from-parts-and-examine",
+    "href": "make_params.html#construct-params-list-from-parts-and-examine",
+    "title": "25  Make params – a temporary step",
+    "section": "25.6 Construct params list from parts and examine",
+    "text": "25.6 Construct params list from parts and examine\n\n\nCode\n# note that I am NOT forcing types to match\nparams &lt;- c(globals, tables)\n\n\n\n\nCode\nnames_params &lt;- names(params)\n\n# Compare each element by name using sapply and identical\nf &lt;- function(n) {\n  # print(n)\n  # print(paramsg[[n]])\n  # print(params[[n]])\n  pmatch &lt;- identical(paramsg[[n]], params[[n]])\n  if (!pmatch) {\n    print(n)\n    print(paramsg[[n]])\n    print(params[[n]])\n  }\n  pmatch\n}\ncomparison &lt;- sapply(names_params, f)\ncomparison\ncomparison[!comparison]\n\nf2 &lt;- function(n) {\n  print(n)\n  print(str(paramsg[[n]]))\n  print(str(params[[n]]))\n}\nnames_not_matching &lt;- names_params[!comparison]\npurrr::walk(names_not_matching, f2)\nf2(\"min_age_\")",
+    "crumbs": [
+      "Make params",
+      "<span class='chapter-number'>25</span>  <span class='chapter-title'>Make params -- a temporary step</span>"
+    ]
+  },
+  {
+    "objectID": "make_params.html#fill-in-any-params-in-gangs-but-not-yet-in-mine",
+    "href": "make_params.html#fill-in-any-params-in-gangs-but-not-yet-in-mine",
+    "title": "25  Make params – a temporary step",
+    "section": "25.7 Fill in any params in Gang’s but not yet in mine",
+    "text": "25.7 Fill in any params in Gang’s but not yet in mine\n\n\nCode\n(extra_params_should_be_empty &lt;- setdiff(names(params), names(paramsg))) # should be nothing here!\nstill_missing &lt;- setdiff(names(paramsg), names(params))\n\nparams[still_missing] &lt;- mget(still_missing, envir = paramsg)\nsetdiff(names(paramsg), names(params))",
+    "crumbs": [
+      "Make params",
+      "<span class='chapter-number'>25</span>  <span class='chapter-title'>Make params -- a temporary step</span>"
+    ]
+  },
+  {
+    "objectID": "make_params.html#convert-params-list-to-params-environment",
+    "href": "make_params.html#convert-params-list-to-params-environment",
+    "title": "25  Make params – a temporary step",
+    "section": "25.8 Convert params list to params environment",
+    "text": "25.8 Convert params list to params environment\n\n\nCode\n# frs$params &lt;- params\n# convert to environment, then we can save\nparams_env &lt;- list2env(params)\nns(params_env)\nparams_env",
+    "crumbs": [
+      "Make params",
+      "<span class='chapter-number'>25</span>  <span class='chapter-title'>Make params -- a temporary step</span>"
+    ]
+  },
+  {
+    "objectID": "make_params.html#get-target-frs_data_env_bf_cal-data-from-gang-and-add-to-the-list",
+    "href": "make_params.html#get-target-frs_data_env_bf_cal-data-from-gang-and-add-to-the-list",
+    "title": "25  Make params – a temporary step",
+    "section": "25.9 Get “target” frs_data_env_bf_cal data from Gang and add to the list",
+    "text": "25.9 Get “target” frs_data_env_bf_cal data from Gang and add to the list\n\n\nCode\n# we don't need this now maybe later put in a separate qmd file\n\n# C:\\Users\\donbo\\Documents\\R_Projects\\pendata\\data-raw\\gang\\params_bf_cal.RData\nfpath &lt;- fs::path(GROOT, \"data-raw\", \"gang\", \"frs_data_env_bf_cal.RData\")\nload(fpath) # loads frs_data_env, an environment\n\n# # 268 objects\n# frsg_info &lt;- tibble(\n#   obj = 1:length(names(frs_data_env)),\n#   name = names(frs_data_env)\n# ) |&gt;\n#   mutate(\n#     type = case_when(\n#       str_detect(name, \"table\") ~ \"table\",\n#       str_sub(name, -1) == \"_\" ~ \"global\",\n#       .default = \"other\"\n#     )\n#   )\n\n# count(frsg_info, type)\n\n#   type       n\n#   &lt;chr&gt;  &lt;int&gt;\n# 1 global    72\n# 2 other     34\n# 3 table    162",
+    "crumbs": [
+      "Make params",
+      "<span class='chapter-number'>25</span>  <span class='chapter-title'>Make params -- a temporary step</span>"
+    ]
+  },
+  {
+    "objectID": "make_params.html#save-final-frs-list-and-individual-environments",
+    "href": "make_params.html#save-final-frs-list-and-individual-environments",
+    "title": "25  Make params – a temporary step",
+    "section": "25.10 Save final frs list and individual environments",
+    "text": "25.10 Save final frs list and individual environments\n\n\nCode\n# reload frs from the work folder (just to be safe) ----\nfpath &lt;- fs::path(DIRS$work, \"frs.rda\")\nload(fpath)\n\nfrs$params_env &lt;- params_env\n# frs$frs_data_env &lt;- frs_data_env\n\nfpath &lt;- fs::path(GROOT, \"data\", \"frs.rda\")\nsave(list = \"frs\", file = fpath, compress = \"xz\")\n\n# fpath &lt;- fs::path(GROOT, \"data\", \"frs_params_env.rda\")\n# save(list = \"frs_params_env\", file = fpath, compress = \"xz\")\n\n# frs_data_env is too big to save!!\n# fpath &lt;- fs::path(GROOT, \"data\", \"frs_data_env.rda\")\n# save(list = \"frs_data_env\", file = fpath, compress = \"xz\")",
+    "crumbs": [
+      "Make params",
+      "<span class='chapter-number'>25</span>  <span class='chapter-title'>Make params -- a temporary step</span>"
+    ]
+  }
+]

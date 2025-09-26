@@ -1,1 +1,0 @@
-This folder is a staging area: files that are ready for inclusion in `pendata` will be included here, with an .rds extension. They will later be assembled into a list for `pendata`.
